@@ -1,0 +1,97 @@
+# ==============================================================================
+# Anti-Phishing SOAR — Stage 1A: Database & Case Management
+# Components: Apache Cassandra 4.0, Elasticsearch 7.17.9, TheHive 4.1.24-1
+# Conservative resource profile for 4 GB RAM VM (zero swap steady-state)
+# ==============================================================================
+
+services:
+  cassandra:
+    image: cassandra:4.0
+    container_name: cassandra
+    restart: unless-stopped
+    mem_limit: 768m
+    mem_reservation: 512m
+    environment:
+      - CASSANDRA_CLUSTER_NAME=${CASSANDRA_CLUSTER_NAME:-th-cluster}
+      - MAX_HEAP_SIZE=${CASSANDRA_MAX_HEAP_SIZE:-384M}
+      - HEAP_NEWSIZE=${CASSANDRA_HEAP_NEWSIZE:-96M}
+      - CASSANDRA_DC=dc1
+      - CASSANDRA_ENDPOINT_SNITCH=GossipingPropertyFileSnitch
+    volumes:
+      - cassandra_data:/var/lib/cassandra
+    networks:
+      - soar_backend_net
+    healthcheck:
+      test: ["CMD-SHELL", "nodetool status | grep -E '^UN' > /dev/null || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 45s
+
+  elasticsearch:
+    image: elasticsearch:7.17.9
+    container_name: elasticsearch
+    restart: unless-stopped
+    mem_limit: 1024m
+    mem_reservation: 600m
+    environment:
+      - discovery.type=single-node
+      - ES_JAVA_OPTS=${ES_JAVA_OPTS:--Xms384m -Xmx512m}
+      - xpack.security.enabled=false
+      - cluster.name=docker-cluster
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    networks:
+      - soar_backend_net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f -s http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=5s > /dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  thehive:
+    image: thehiveproject/thehive4:4.1.24-1
+    container_name: thehive
+    restart: unless-stopped
+    mem_limit: 800m
+    mem_reservation: 500m
+    depends_on:
+      cassandra:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+    command:
+      - "--no-config"
+      - "--config-file"
+      - "/etc/thehive/application.conf"
+    environment:
+      - JAVA_OPTS=${THEHIVE_JAVA_OPTS:--Xms384m -Xmx384m}
+      - THEHIVE_PLAY_SECRET=${THEHIVE_PLAY_SECRET}
+    ports:
+      # Bound strictly to loopback interface on the host (never exposed to LAN or external)
+      - "127.0.0.1:9000:9000"
+    volumes:
+      - ../thehive/application.conf:/etc/thehive/application.conf:ro
+      - thehive_data:/opt/thp/thehive/files
+    networks:
+      - soar_backend_net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f -s http://localhost:9000/api/status > /dev/null || curl -f -s http://localhost:9000/index.html > /dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 45s
+
+networks:
+  soar_backend_net:
+    driver: bridge
+    name: soar_backend_net
+
+volumes:
+  cassandra_data:
+    name: soar_cassandra_data
+  elasticsearch_data:
+    name: soar_elasticsearch_data
+  thehive_data:
+    name: soar_thehive_data

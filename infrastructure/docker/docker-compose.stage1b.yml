@@ -1,0 +1,69 @@
+# ==============================================================================
+# Anti-Phishing SOAR — Stage 1B: Threat Intelligence & Observable Analysis
+# Components: Dedicated Elasticsearch 7.17.9, Cortex 3.1.8
+# Conservative resource profile for 4 GB RAM VM (zero swap steady-state)
+# ==============================================================================
+
+services:
+  cortex_elasticsearch:
+    image: elasticsearch:7.17.9
+    container_name: cortex_elasticsearch
+    restart: unless-stopped
+    mem_limit: 1024m
+    mem_reservation: 600m
+    environment:
+      - discovery.type=single-node
+      - ES_JAVA_OPTS=${ES_JAVA_OPTS:--Xms384m -Xmx512m}
+      - xpack.security.enabled=false
+      - cluster.name=cortex-cluster
+    volumes:
+      - cortex_elasticsearch_data:/usr/share/elasticsearch/data
+    networks:
+      - cortex_backend_net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f -s http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=5s > /dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  cortex:
+    image: thehiveproject/cortex:3.1.8
+    container_name: cortex
+    restart: unless-stopped
+    mem_limit: 800m
+    mem_reservation: 500m
+    depends_on:
+      cortex_elasticsearch:
+        condition: service_healthy
+    command:
+      - "--no-config"
+    environment:
+      - JAVA_OPTS=${CORTEX_JAVA_OPTS:--Xms384m -Xmx384m}
+      - CORTEX_SECRET=${CORTEX_SECRET}
+    ports:
+      # Bound strictly to loopback interface on the host (never exposed to LAN or external)
+      - "127.0.0.1:9001:9001"
+    volumes:
+      - ../cortex/application.conf:/etc/cortex/application.conf
+      - ../cortex/analyzers:/opt/cortex/analyzers:ro
+      - cortex_data:/opt/cortex/data
+    networks:
+      - cortex_backend_net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f -s http://localhost:9001/api/status > /dev/null || curl -f -s http://localhost:9001/index.html > /dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 45s
+
+networks:
+  cortex_backend_net:
+    driver: bridge
+    name: cortex_backend_net
+
+volumes:
+  cortex_elasticsearch_data:
+    name: soar_cortex_elasticsearch_data
+  cortex_data:
+    name: soar_cortex_data

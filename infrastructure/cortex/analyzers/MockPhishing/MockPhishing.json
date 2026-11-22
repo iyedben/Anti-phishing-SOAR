@@ -1,0 +1,17 @@
+{
+  "name": "MockPhishing",
+  "version": "1.0",
+  "author": "Anti-Phishing SOAR Lab",
+  "url": "https://local.lab/mock-phishing",
+  "license": "AGPL-v3",
+  "description": "Academic mock threat intelligence analyzer for phishing observables (URL, domain, IP)",
+  "dataTypeList": [
+    "ip",
+    "domain",
+    "url",
+    "fqdn"
+  ],
+  "baseConfig": "MockPhishing",
+  "command": "MockPhishing/mock_phishing.py",
+  "configurationItems": []
+}

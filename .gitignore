@@ -1,0 +1,35 @@
+# Anti-Phishing SOAR - Git Ignore
+
+# Environment & Credentials
+.env
+*.env
+!.env.example
+*.key
+*.pem
+*.secret
+credentials/
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+build/
+dist/
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Logs & temp files
+*.log
+tmp/
+.cache/
+
+# OS artifacts
+.DS_Store
+Thumbs.db
